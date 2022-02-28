@@ -1,15 +1,19 @@
 import bs4
 import httpx
+from lxml import etree
 
 
 class WebSynDic:
     def __init__(self) -> None:
-        self.site: str = "https://www.websyndic.com/"
         self.session = httpx.Client()
 
         self.endpoint: dict = {
+            "home": "https://www.websyndic.com/wv3/FR/?p=home",
             "cc": "https://www.websyndic.com/wv3/cc.php",
             "account": "https://www.websyndic.com/wv3/FR/?p=account",
+            "visio01": "https://www.websyndic.com/wv3/FR/?p=visio01",
+            "target": "https://www.websyndic.com/wv3/target.php",
+            "valid_surf": "https://www.websyndic.com/wv3/valid_surf.php",
         }
 
     def get_data(self, url: str) -> dict:
@@ -23,7 +27,7 @@ class WebSynDic:
         }
 
     def login(self, email: str, password: str) -> None:
-        data_temp = self.get_data(self.site)
+        data_temp = self.get_data(self.endpoint["home"])
 
         data = {
             "key": data_temp["key"],
@@ -51,5 +55,36 @@ class WebSynDic:
         else:
             print("Error while trying to connect...")
 
+    def make_points(self) -> None:
+        visio1 = self.session.get(self.endpoint["visio01"]).text
+        visio1_parse = bs4.BeautifulSoup(visio1, "html.parser")
+        dom = etree.HTML(str(visio1_parse))
+        p = (
+            "https://www.websyndic.com/wv3/FR/"
+            + dom.xpath('//*[@id="main_page"]/div[1]/div[3]/div/div/a')[0].attrib[
+                "href"
+            ]
+        )
+        self.session.get(self.endpoint["target"]).text
+        p_access = self.session.get(p).text
+        self.session.get(self.endpoint["target"]).text
 
-WebSynDic().login("", "")
+        key = p_access.split("var key=")[1].split(";")[0]
+        rv = p_access.split('["')[1].split('",')[0]
+        v = p_access.split('["')[1].split('",')[1].split('"')[1].split('"]')[0]
+
+        payload = f"key={key}&w=1.1&rv={rv}&v={v}"
+
+        test = self.session.post(
+            self.endpoint["valid_surf"],
+            data=payload,
+            headers={
+                "content-type": "application/x-www-form-urlencoded; charset=UTF-8"
+            },
+        )
+        print(test.text)
+
+
+websyndic = WebSynDic()
+websyndic.login("", "")
+websyndic.make_points()
